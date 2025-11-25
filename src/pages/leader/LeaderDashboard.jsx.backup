@@ -1,0 +1,542 @@
+﻿import { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { getPolls, savePoll, deletePoll, updatePoll, checkPollStatus, getPollAnalytics } from '../../utils/storage';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import QRCode from 'qrcode.react';
+import { format } from 'date-fns';
+import '../../styles/LeaderDashboard.css';
+
+const LeaderDashboard = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [polls, setPolls] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingPoll, setEditingPoll] = useState(null);
+  const [showQR, setShowQR] = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(null);
+  const [optionCount, setOptionCount] = useState(2);
+  const [formData, setFormData] = useState({
+    question: '',
+    options: ['', ''],
+    inputType: 'radio',
+    fakeResults: [50, 50],
+    startDate: null,
+    endDate: null,
+    enableExpiry: false
+  });
+
+  useEffect(() => {
+    loadPolls();
+    const interval = setInterval(loadPolls, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadPolls = () => {
+    const userPolls = getPolls(user.id);
+    // Update poll statuses
+    const updatedPolls = userPolls.map(poll => ({
+      ...poll,
+      status: checkPollStatus(poll)
+    }));
+    setPolls(updatedPolls);
+  };
+
+  const addOption = () => {
+    if (optionCount < 10) {
+      const newCount = optionCount + 1;
+      setOptionCount(newCount);
+      const newOptions = [...formData.options, ''];
+      const newFakeResults = [...formData.fakeResults, 0];
+      // Distribute percentages equally
+      const equalPercent = Math.floor(100 / newCount);
+      const distributed = newFakeResults.map(() => equalPercent);
+      distributed[0] += 100 - (equalPercent * newCount); // Add remainder to first option
+      setFormData({
+        ...formData,
+        options: newOptions,
+        fakeResults: distributed
+      });
+    }
+  };
+
+  const removeOption = (index) => {
+    if (optionCount > 2) {
+      const newOptions = formData.options.filter((_, i) => i !== index);
+      const newFakeResults = formData.fakeResults.filter((_, i) => i !== index);
+      setOptionCount(optionCount - 1);
+      // Redistribute percentages
+      const total = newFakeResults.reduce((sum, val) => sum + val, 0);
+      const adjusted = newFakeResults.map(val => Math.round((val / total) * 100));
+      setFormData({
+        ...formData,
+        options: newOptions,
+        fakeResults: adjusted
+      });
+    }
+  };
+
+  const updateOption = (index, value) => {
+    const newOptions = [...formData.options];
+    newOptions[index] = value;
+    setFormData({ ...formData, options: newOptions });
+  };
+
+  const updateFakeResult = (index, value) => {
+    const newFakeResults = [...formData.fakeResults];
+    newFakeResults[index] = parseInt(value) || 0;
+    setFormData({ ...formData, fakeResults: newFakeResults });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // Validate options
+    const validOptions = formData.options.filter(opt => opt.trim() !== '');
+    if (validOptions.length < 2) {
+      alert('Please provide at least 2 options');
+      return;
+    }
+
+    // Validate fake results total = 100%
+    const totalPercent = formData.fakeResults.reduce((sum, val) => sum + val, 0);
+    if (totalPercent !== 100) {
+      alert('Fake results must total 100%');
+      return;
+    }
+
+    const pollData = {
+      question: formData.question,
+      options: validOptions,
+      inputType: formData.inputType,
+      fakeResults: formData.fakeResults.slice(0, validOptions.length),
+      leaderId: user.id,
+      leaderName: user.name,
+      startDate: formData.startDate ? formData.startDate.toISOString() : null,
+      endDate: formData.enableExpiry && formData.endDate ? formData.endDate.toISOString() : null
+    };
+
+    if (editingPoll) {
+      updatePoll(editingPoll.id, pollData);
+    } else {
+      savePoll(pollData);
+    }
+
+    resetForm();
+    loadPolls();
+  };
+
+  const resetForm = () => {
+    setFormData({
+      question: '',
+      options: ['', ''],
+      inputType: 'radio',
+      fakeResults: [50, 50],
+      startDate: null,
+      endDate: null,
+      enableExpiry: false
+    });
+    setOptionCount(2);
+    setShowForm(false);
+    setEditingPoll(null);
+  };
+
+  const handleEdit = (poll) => {
+    setEditingPoll(poll);
+    const options = poll.options || [poll.option1, poll.option2];
+    const fakeResults = poll.fakeResults || [poll.fakeResultOption1, poll.fakeResultOption2];
+    setOptionCount(options.length);
+    setFormData({
+      question: poll.question,
+      options: options,
+      inputType: poll.inputType,
+      fakeResults: fakeResults,
+      startDate: poll.startDate ? new Date(poll.startDate) : null,
+      endDate: poll.endDate ? new Date(poll.endDate) : null,
+      enableExpiry: !!poll.endDate
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this poll?')) {
+      deletePoll(id);
+      loadPolls();
+    }
+  };
+
+  const copyLink = (link) => {
+    const fullLink = `${window.location.origin}/poll/${link}`;
+    navigator.clipboard.writeText(fullLink);
+    alert('Poll link copied to clipboard!');
+  };
+
+  const shareWhatsApp = (link) => {
+    const fullLink = `${window.location.origin}/poll/${link}`;
+    const message = `Vote in this poll: ${fullLink}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const shareFacebook = (link) => {
+    const fullLink = `${window.location.origin}/poll/${link}`;
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullLink)}`, '_blank');
+  };
+
+  const shareTwitter = (link, question) => {
+    const fullLink = `${window.location.origin}/poll/${link}`;
+    const text = `Vote on: ${question}`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fullLink)}`, '_blank');
+  };
+
+  const downloadQR = (linkId) => {
+    const canvas = document.getElementById(`qr-${linkId}`);
+    if (canvas) {
+      const url = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `poll-qr-${linkId}.png`;
+      link.href = url;
+      link.click();
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      active: { text: 'Active', class: 'status-active' },
+      scheduled: { text: 'Scheduled', class: 'status-scheduled' },
+      expired: { text: 'Expired', class: 'status-expired' },
+      closed: { text: 'Closed', class: 'status-closed' }
+    };
+    const badge = badges[status] || badges.active;
+    return <span className={`status-badge ${badge.class}`}>{badge.text}</span>;
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const totalVotes = polls.reduce((sum, p) => {
+    const votes = p.votes;
+    if (typeof votes === 'object') {
+      return sum + Object.values(votes).reduce((s, v) => s + v, 0);
+    }
+    return sum;
+  }, 0);
+
+  return (
+    <div className=\"leader-dashboard\">
+      <header className=\"dashboard-header\">
+        <div>
+          <h1>Leader Dashboard</h1>
+          <p>Welcome, {user?.name}</p>
+        </div>
+        <button onClick={handleLogout} className=\"logout-btn\">Logout</button>
+      </header>
+
+      <div className=\"dashboard-content\">
+        <div className=\"stats-section\">
+          <div className=\"stat-card\">
+            <h3>{polls.length}</h3>
+            <p>Total Polls</p>
+          </div>
+          <div className=\"stat-card\">
+            <h3>{totalVotes}</h3>
+            <p>Total Votes</p>
+          </div>
+          <div className=\"stat-card\">
+            <h3>{polls.filter(p => p.status === 'active').length}</h3>
+            <p>Active Polls</p>
+          </div>
+        </div>
+
+        <div className=\"polls-section\">
+          <div className=\"section-header\">
+            <h2>My Polls</h2>
+            <button onClick={() => setShowForm(!showForm)} className=\"add-btn\">
+              {showForm ? 'Cancel' : '+ Create New Poll'}
+            </button>
+          </div>
+
+          {showForm && (
+            <div className=\"poll-form-card\">
+              <h3>{editingPoll ? 'Edit Poll' : 'Create New Poll'}</h3>
+              <form onSubmit={handleSubmit}>
+                <div className=\"form-group\">
+                  <label>Poll Question *</label>
+                  <input
+                    type=\"text\"
+                    value={formData.question}
+                    onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                    placeholder=\"Enter your poll question\"
+                    required
+                  />
+                </div>
+
+                <div className=\"form-group\">
+                  <label>Number of Options ({optionCount}/10)</label>
+                  <div className=\"option-controls\">
+                    <button type=\"button\" onClick={addOption} disabled={optionCount >= 10}>
+                      + Add Option
+                    </button>
+                  </div>
+                </div>
+
+                {formData.options.map((option, index) => (
+                  <div key={index} className=\"option-input-group\">
+                    <label>Option {index + 1} *</label>
+                    <div className=\"option-input-row\">
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(e) => updateOption(index, e.target.value)}
+                        placeholder={`Enter option ${index + 1}`}
+                        required
+                      />
+                      {optionCount > 2 && (
+                        <button type=\"button\" onClick={() => removeOption(index)} className=\"remove-btn\">
+                          
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className=\"form-group\">
+                  <label>Input Type</label>
+                  <select
+                    value={formData.inputType}
+                    onChange={(e) => setFormData({ ...formData, inputType: e.target.value })}
+                  >
+                    <option value=\"radio\">Radio Button</option>
+                    <option value=\"slider\">Slider</option>
+                  </select>
+                </div>
+
+                <div className=\"form-group\">
+                  <label>
+                    <input
+                      type=\"checkbox\"
+                      checked={formData.enableExpiry}
+                      onChange={(e) => setFormData({ ...formData, enableExpiry: e.target.checked })}
+                    />
+                    {' '}Enable Poll Scheduling/Expiry
+                  </label>
+                </div>
+
+                {formData.enableExpiry && (
+                  <div className=\"form-row\">
+                    <div className=\"form-group\">
+                      <label>Start Date (Optional)</label>
+                      <DatePicker
+                        selected={formData.startDate}
+                        onChange={(date) => setFormData({ ...formData, startDate: date })}
+                        showTimeSelect
+                        dateFormat=\"Pp\"
+                        placeholderText=\"Select start date/time\"
+                        className=\"date-input\"
+                      />
+                    </div>
+                    <div className=\"form-group\">
+                      <label>End Date</label>
+                      <DatePicker
+                        selected={formData.endDate}
+                        onChange={(date) => setFormData({ ...formData, endDate: date })}
+                        showTimeSelect
+                        dateFormat=\"Pp\"
+                        placeholderText=\"Select end date/time\"
+                        minDate={formData.startDate || new Date()}
+                        className=\"date-input\"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className=\"fake-results-section\">
+                  <h4>Set Fake Results (What voters will see)</h4>
+                  {formData.options.map((option, index) => (
+                    option.trim() && (
+                      <div key={index} className="form-group">
+                        <label>{option || `Option ${index + 1}`} (%)</label>
+                        <input
+                          type=\"number\"
+                          min=\"0\"
+                          max=\"100\"
+                          value={formData.fakeResults[index] || 0}
+                          onChange={(e) => updateFakeResult(index, e.target.value)}
+                        />
+                        <span className=\"percentage\">{formData.fakeResults[index] || 0}%</span>
+                      </div>
+                    )
+                  ))}
+                  <p className=\"hint\">
+                    Total: {formData.fakeResults.reduce((s, v) => s + v, 0)}% 
+                    {formData.fakeResults.reduce((s, v) => s + v, 0) !== 100 && ' (Must equal 100%)'}
+                  </p>
+                </div>
+
+                <div className=\"form-actions\">
+                  <button type=\"submit\" className=\"submit-btn\">
+                    {editingPoll ? 'Update Poll' : 'Create Poll'}
+                  </button>
+                  <button type=\"button\" onClick={resetForm} className=\"cancel-btn\">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className=\"polls-grid\">
+            {polls.length === 0 ? (
+              <p className=\"no-data\">No polls created yet. Click \"Create New Poll\" to start.</p>
+            ) : (
+              polls.map((poll) => {
+                const options = poll.options || [poll.option1, poll.option2];
+                const fakeResults = poll.fakeResults || [poll.fakeResultOption1, poll.fakeResultOption2];
+                const votes = poll.votes || {};
+                const totalVotes = Object.values(votes).reduce((sum, val) => sum + val, 0);
+                const analytics = getPollAnalytics(poll.id);
+
+                return (
+                  <div key={poll.id} className=\"poll-card\">
+                    <div className=\"poll-header\">
+                      <div>
+                        <h3>{poll.question}</h3>
+                        <div className=\"poll-meta\">
+                          <span className=\"poll-type\">{poll.inputType}</span>
+                          {getStatusBadge(poll.status)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {poll.startDate && (
+                      <p className=\"poll-schedule\">
+                        <strong>Start:</strong> {format(new Date(poll.startDate), 'PPp')}
+                      </p>
+                    )}
+                    {poll.endDate && (
+                      <p className=\"poll-schedule\">
+                        <strong>End:</strong> {format(new Date(poll.endDate), 'PPp')}
+                      </p>
+                    )}
+
+                    <div className=\"poll-options\">
+                      {options.map((opt, idx) => (
+                        <p key={idx}><strong>Option {idx + 1}:</strong> {opt}</p>
+                      ))}
+                    </div>
+
+                    <div className=\"results-section\">
+                      <h4>Real Results (Only you can see):</h4>
+                      {options.map((opt, idx) => {
+                        const optVotes = votes[`option${idx + 1}`] || 0;
+                        const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
+                        return (
+                          <div key={idx} className=\"result-bar\">
+                            <span>{opt}: {optVotes} votes ({percent}%)</span>
+                            <div className="bar">
+                              <div className="fill actual" style={{ width: `${percent}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <h4 style={{ marginTop: '15px' }}>Fake Results (Voters see):</h4>
+                      {options.map((opt, idx) => {
+                        const fakePercent = fakeResults[idx] || 0;
+                        return (
+                          <div key={idx} className=\"result-bar\">
+                            <span>{opt}: {fakePercent}%</span>
+                            <div className="bar">
+                              <div className="fill fake" style={{ width: `${fakePercent}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {analytics && (
+                      <div className=\"analytics-summary\">
+                        <p><strong>Views:</strong> {analytics.viewCount} | <strong>Votes:</strong> {analytics.totalVotes}</p>
+                        <p><strong>Conversion:</strong> {analytics.conversionRate}%</p>
+                        <button onClick={() => setShowAnalytics(showAnalytics === poll.id ? null : poll.id)} className=\"analytics-btn\">
+                          {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
+                        </button>
+                      </div>
+                    )}
+
+                    {showAnalytics === poll.id && analytics && (
+                      <div className=\"analytics-details\">
+                        <h4>Peak Hour:</h4>
+                        <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
+                        <h4>Votes by Hour:</h4>
+                        <div className=\"hour-chart\">
+                          {Object.entries(analytics.votesByHour).slice(0, 24).map(([hour, count]) => (
+                            <div key={hour} className="hour-bar" title={`${hour}:00 - ${count} votes`}>
+                              <div className="bar-fill" style={{ height: `${(count / Math.max(...Object.values(analytics.votesByHour))) * 100}%` }}></div>
+                              <span className=\"hour-label\">{hour}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className=\"poll-link\">
+                      <small>Poll Link:</small>
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/poll/${poll.uniqueLink}`}
+                      />
+                      <button onClick={() => copyLink(poll.uniqueLink)} className=\"copy-btn\">
+                         Copy
+                      </button>
+                    </div>
+
+                    <div className=\"share-section\">
+                      <button onClick={() => shareWhatsApp(poll.uniqueLink)} className=\"share-btn whatsapp\">
+                        WhatsApp
+                      </button>
+                      <button onClick={() => shareFacebook(poll.uniqueLink)} className=\"share-btn facebook\">
+                        Facebook
+                      </button>
+                      <button onClick={() => shareTwitter(poll.uniqueLink, poll.question)} className=\"share-btn twitter\">
+                        Twitter
+                      </button>
+                      <button onClick={() => setShowQR(showQR === poll.id ? null : poll.id)} className=\"share-btn qr\">
+                        QR Code
+                      </button>
+                    </div>
+
+                    {showQR === poll.id && (
+                      <div className=\"qr-section\">
+                        <QRCode
+                          id={`qr-${poll.uniqueLink}`}
+                          value={`${window.location.origin}/poll/${poll.uniqueLink}`}
+                          size={200}
+                          level=\"H\"
+                          includeMargin={true}
+                        />
+                        <button onClick={() => downloadQR(poll.uniqueLink)} className=\"download-qr-btn\">
+                          Download QR
+                        </button>
+                      </div>
+                    )}
+
+                    <div className=\"poll-actions\">
+                      <button onClick={() => handleEdit(poll)} className=\"edit-btn\">Edit</button>
+                      <button onClick={() => handleDelete(poll.id)} className=\"delete-btn\">Delete</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LeaderDashboard;

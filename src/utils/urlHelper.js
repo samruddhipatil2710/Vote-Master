@@ -1,0 +1,50 @@
+/**
+ * Get the base URL for the application
+ * In production, uses environment variable
+ * In development, uses window.location.origin
+ */
+export const getBaseUrl = () => {
+  // Check if we have a production URL configured
+  const envUrl = import.meta.env.VITE_APP_URL;
+  
+  if (envUrl && envUrl !== 'http://localhost:5173') {
+    return envUrl;
+  }
+  
+  // Fallback to current origin
+  return window.location.origin;
+};
+
+/**
+ * Generate a full poll URL
+ */
+export const getPollUrl = (uniqueLink) => {
+  const baseUrl = getBaseUrl();
+  return `${baseUrl}/poll/${uniqueLink}`;
+};
+
+/**
+ * Copy URL to clipboard
+ */
+export const copyToClipboard = async (text) => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } else {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return success;
+    }
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    return false;
+  }
+};
