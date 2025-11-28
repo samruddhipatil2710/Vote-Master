@@ -49,6 +49,7 @@ const AdminDashboard = () => {
   const [showQR, setShowQR] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(null);
   const [selectedLeaderPolls, setSelectedLeaderPolls] = useState(null);
+  const [expandedPoll, setExpandedPoll] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     mobile: "",
@@ -219,6 +220,10 @@ const AdminDashboard = () => {
     };
     const badge = badges[status] || badges.active;
     return <span className={`status-badge ${badge.class}`}>{badge.text}</span>;
+  };
+
+  const togglePollExpand = (pollId) => {
+    setExpandedPoll(expandedPoll === pollId ? null : pollId);
   };
 
   return (
@@ -555,138 +560,200 @@ const AdminDashboard = () => {
                 const votes = poll.votes || {};
                 const totalVotes = Object.values(votes).reduce((sum, val) => sum + val, 0);
                 const analytics = getPollAnalytics(poll.id);
+                const isExpanded = expandedPoll === poll.id;
 
                 return (
-                  <div key={poll.id} className="poll-card">
-                    <div className="poll-header">
-                      <div>
-                        <h3>{poll.question}</h3>
-                        <div className="poll-meta">
-                          <span className="poll-type">{poll.inputType}</span>
+                  <div key={poll.id} className={`poll-card-compact ${isExpanded ? 'expanded' : ''}`}>
+                    {/* Compact Header - Always Visible */}
+                    <div className="poll-card-compact-header" onClick={() => togglePollExpand(poll.id)}>
+                      <div className="poll-compact-info">
+                        <h3 className="poll-compact-title">{poll.question}</h3>
+                        <div className="poll-compact-stats">
                           {getStatusBadge(poll.status)}
+                          <span className="compact-stat">
+                            <FontAwesomeIcon icon={faEye} /> {poll.viewCount || 0}
+                          </span>
+                          <span className="compact-stat">
+                            <FontAwesomeIcon icon={faVoteYea} /> {totalVotes}
+                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    {poll.startDate && !isNaN(new Date(poll.startDate).getTime()) && (
-                      <p className="poll-schedule">
-                        <strong>Start:</strong> {format(new Date(poll.startDate), 'PPp')}
-                      </p>
-                    )}
-                    {poll.endDate && !isNaN(new Date(poll.endDate).getTime()) && (
-                      <p className="poll-schedule">
-                        <strong>End:</strong> {format(new Date(poll.endDate), 'PPp')}
-                      </p>
-                    )}
-
-                    <div className="poll-options">
-                      {options.map((opt, idx) => (
-                        <p key={idx}><strong>Option {idx + 1}:</strong> {opt}</p>
-                      ))}
-                    </div>
-
-                    <div className="results-section">
-                      <h4>Real Results:</h4>
-                      {options.map((opt, idx) => {
-                        const optVotes = votes[`option${idx + 1}`] || 0;
-                        const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
-                        return (
-                          <div key={idx} className="result-bar">
-                            <span>{opt}: {optVotes} votes ({percent}%)</span>
-                            <div className="bar">
-                              <div className="fill actual" style={{ width: `${percent}%` }}></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      <h4 style={{ marginTop: '15px' }}>Fake Results (Voters see):</h4>
-                      {options.map((opt, idx) => {
-                        const fakePercent = fakeResults[idx] || 0;
-                        return (
-                          <div key={idx} className="result-bar">
-                            <span>{opt}: {fakePercent}%</span>
-                            <div className="bar">
-                              <div className="fill fake" style={{ width: `${fakePercent}%` }}></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {analytics && (
-                      <div className="analytics-summary">
-                        <p><strong>Views:</strong> {analytics.viewCount} | <strong>Votes:</strong> {analytics.totalVotes}</p>
-                        <p><strong>Conversion:</strong> {analytics.conversionRate}%</p>
-                        <button onClick={() => setShowAnalytics(showAnalytics === poll.id ? null : poll.id)} className="analytics-btn">
-                          {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
+                      <div className="poll-card-actions">
+                        <button 
+                          className="expand-toggle-btn"
+                          onClick={(e) => { e.stopPropagation(); togglePollExpand(poll.id); }}
+                        >
+                          <FontAwesomeIcon icon={isExpanded ? faTimes : faChartBar} />
                         </button>
                       </div>
-                    )}
+                    </div>
 
-                    {showAnalytics === poll.id && analytics && (
-                      <div className="analytics-details">
-                        {analytics.peakHour && (
-                          <>
-                            <h4>Peak Hour:</h4>
-                            <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
-                          </>
+                    {/* Expanded Details - Show only when expanded */}
+                    {isExpanded && (
+                      <div className="poll-card-expanded-content">
+                        <div className="poll-meta">
+                          <span className="poll-type">{poll.inputType}</span>
+                        </div>
+
+                        {poll.startDate && !isNaN(new Date(poll.startDate).getTime()) && (
+                          <p className="poll-schedule">
+                            <strong>Start:</strong> {format(new Date(poll.startDate), 'PPp')}
+                          </p>
                         )}
-                        {analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
-                          <>
-                            <h4>Votes by Hour:</h4>
-                            <div className="hour-chart">
-                              {Object.entries(analytics.votesByHour).slice(0, 24).map(([hour, count]) => (
-                                <div key={hour} className="hour-bar" title={`${hour}:00 - ${count} votes`}>
-                                  <div className="bar-fill" style={{ height: `${(count / Math.max(...Object.values(analytics.votesByHour))) * 100}%` }}></div>
-                                  <span className="hour-label">{hour}</span>
+                        {poll.endDate && !isNaN(new Date(poll.endDate).getTime()) && (
+                          <p className="poll-schedule">
+                            <strong>End:</strong> {format(new Date(poll.endDate), 'PPp')}
+                          </p>
+                        )}
+
+                        <div className="poll-options">
+                          {options.map((opt, idx) => (
+                            <p key={idx}><strong>Option {idx + 1}:</strong> {opt}</p>
+                          ))}
+                        </div>
+
+                        <div className="results-section">
+                          <div className="results-header">
+                            <h4>📊 Real Results</h4>
+                            <span className="results-badge private">🔒 Private - Admin only</span>
+                          </div>
+                          {options.map((opt, idx) => {
+                            const optVotes = votes[`option${idx + 1}`] || 0;
+                            const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
+                            return (
+                              <div key={idx} className="result-item-modern">
+                                <div className="result-label-row">
+                                  <span className="result-option-name">{opt}</span>
+                                  <span className="result-stats">
+                                    <strong>{optVotes}</strong> votes · <strong>{percent}%</strong>
+                                  </span>
                                 </div>
-                              ))}
-                            </div>
-                          </>
+                                <div className="result-bar-modern">
+                                  <div className="result-fill-modern actual" style={{ width: `${percent}%` }}>
+                                    {percent > 5 && <span className="result-percent-label">{percent}%</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          <div className="results-header" style={{ marginTop: '24px' }}>
+                            <h4>👁️ Public Results</h4>
+                            <span className="results-badge public">🌍 Public - Voters see this</span>
+                          </div>
+                          {options.map((opt, idx) => {
+                            const fakeValue = fakeResults[idx] || 0;
+                            const fakeResultMode = poll.fakeResultMode || 'percentage';
+                            
+                            // Calculate display values
+                            let displayValue, barWidth;
+                            if (fakeResultMode === 'percentage') {
+                              displayValue = `${fakeValue}%`;
+                              barWidth = fakeValue;
+                            } else {
+                              // Number mode
+                              const totalFakeVotes = fakeResults.reduce((sum, v) => sum + (v || 0), 0);
+                              const percentage = totalFakeVotes > 0 ? ((fakeValue / totalFakeVotes) * 100).toFixed(1) : 0;
+                              displayValue = `${fakeValue.toLocaleString()} votes`;
+                              barWidth = percentage;
+                            }
+                            
+                            return (
+                              <div key={idx} className="result-item-modern">
+                                <div className="result-label-row">
+                                  <span className="result-option-name">{opt}</span>
+                                  <span className="result-stats">
+                                    <strong>{displayValue}</strong>
+                                  </span>
+                                </div>
+                                <div className="result-bar-modern">
+                                  <div className="result-fill-modern fake" style={{ width: `${barWidth}%` }}>
+                                    {barWidth > 5 && <span className="result-percent-label">{displayValue}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {analytics && (
+                          <div className="analytics-summary">
+                            <p><strong>👁️ Views:</strong> {analytics.viewCount || poll.viewCount || 0}</p>
+                            <p><strong>🗳️ Votes:</strong> {totalVotes}</p>
+                            <p><strong>📊 Conversion Rate:</strong> {poll.viewCount > 0 ? ((totalVotes / poll.viewCount) * 100).toFixed(1) : 0}%</p>
+                            <button onClick={(e) => { e.stopPropagation(); setShowAnalytics(showAnalytics === poll.id ? null : poll.id); }} className="analytics-btn">
+                              {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
+                            </button>
+                          </div>
                         )}
+
+                        {showAnalytics === poll.id && analytics && (
+                          <div className="analytics-details">
+                            {analytics.peakHour && analytics.peakHour.count > 0 && (
+                              <>
+                                <h4>Peak Hour:</h4>
+                                <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
+                              </>
+                            )}
+                            {analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
+                              <>
+                                <h4>Votes by Hour:</h4>
+                                <div className="hour-chart">
+                                  {Object.entries(analytics.votesByHour).slice(0, 24).map(([hour, count]) => (
+                                    <div key={hour} className="hour-bar" title={`${hour}:00 - ${count} votes`}>
+                                      <div className="bar-fill" style={{ height: `${(count / Math.max(...Object.values(analytics.votesByHour))) * 100}%` }}></div>
+                                      <span className="hour-label">{hour}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="poll-link">
+                          <small>Poll Link:</small>
+                          <input
+                            type="text"
+                            readOnly
+                            value={getPollUrl(poll.uniqueLink)}
+                          />
+                          <button onClick={(e) => { e.stopPropagation(); copyLink(poll.uniqueLink); }} className="copy-btn">
+                            Copy
+                          </button>
+                        </div>
+
+                        <div className="share-section">
+                          <button onClick={(e) => { e.stopPropagation(); shareWhatsApp(poll.uniqueLink); }} className="share-btn whatsapp">
+                            WhatsApp
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setShowQR(showQR === poll.id ? null : poll.id); }} className="share-btn qr">
+                            QR Code
+                          </button>
+                        </div>
+
+                        {showQR === poll.id && (
+                          <div className="qr-section">
+                            <QRCodeSVG
+                              id={`qr-${poll.uniqueLink}`}
+                              value={getPollUrl(poll.uniqueLink)}
+                              size={200}
+                              level="H"
+                              includeMargin={true}
+                            />
+                            <button onClick={(e) => { e.stopPropagation(); downloadQR(poll.uniqueLink); }} className="download-qr-btn">
+                              Download QR
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="poll-actions">
+                          <button onClick={(e) => handleDeletePoll(e, poll.id)} className="delete-btn">
+                            <FontAwesomeIcon icon={faTrash} /> Delete
+                          </button>
+                        </div>
                       </div>
                     )}
-
-                    <div className="poll-link">
-                      <small>Poll Link:</small>
-                      <input
-                        type="text"
-                        readOnly
-                        value={getPollUrl(poll.uniqueLink)}
-                      />
-                      <button onClick={() => copyLink(poll.uniqueLink)} className="copy-btn">
-                        📋 Copy
-                      </button>
-                    </div>
-
-                    <div className="share-section">
-                      <button onClick={() => shareWhatsApp(poll.uniqueLink)} className="share-btn whatsapp">
-                        WhatsApp
-                      </button>
-                      <button onClick={() => setShowQR(showQR === poll.id ? null : poll.id)} className="share-btn qr">
-                        QR Code
-                      </button>
-                    </div>
-
-                    {showQR === poll.id && (
-                      <div className="qr-section">
-                        <QRCodeSVG
-                          id={`qr-${poll.uniqueLink}`}
-                          value={getPollUrl(poll.uniqueLink)}
-                          size={200}
-                          level="H"
-                          includeMargin={true}
-                        />
-                        <button onClick={() => downloadQR(poll.uniqueLink)} className="download-qr-btn">
-                          Download QR
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="poll-actions">
-                      <button onClick={(e) => handleDeletePoll(e, poll.id)} className="delete-btn">Delete</button>
-                    </div>
                   </div>
                 );
               })

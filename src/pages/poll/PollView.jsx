@@ -130,6 +130,7 @@ const PollView = () => {
 
   const options = poll.options || [poll.option1, poll.option2];
   const fakeResults = poll.fakeResults || [poll.fakeResultOption1, poll.fakeResultOption2];
+  const fakeResultMode = poll.fakeResultMode || 'percentage';
   const canVote = pollStatus === 'active' && !hasVoted;
   
   console.log('PollView State:', {
@@ -161,31 +162,42 @@ const PollView = () => {
       return fakeResults;
     }
 
-    // Calculate adjusted percentages to show user's vote impact
-    const voteImpact = 1; // User's vote adds 1% to their chosen option
-    
-    const adjustedResults = fakeResults.map((percent, idx) => {
-      if (idx === votedOptionIndex) {
-        // Add 1% to the option they voted for
-        return Math.min(percent + voteImpact, 100);
-      } else {
-        // Reduce other options proportionally
-        const reductionPerOption = voteImpact / (options.length - 1);
-        return Math.max(percent - reductionPerOption, 0);
+    if (fakeResultMode === 'percentage') {
+      // Calculate adjusted percentages to show user's vote impact
+      const voteImpact = 1; // User's vote adds 1% to their chosen option
+      
+      const adjustedResults = fakeResults.map((percent, idx) => {
+        if (idx === votedOptionIndex) {
+          // Add 1% to the option they voted for
+          return Math.min(percent + voteImpact, 100);
+        } else {
+          // Reduce other options proportionally
+          const reductionPerOption = voteImpact / (options.length - 1);
+          return Math.max(percent - reductionPerOption, 0);
+        }
+      });
+
+      // Ensure total is exactly 100%
+      const total = adjustedResults.reduce((sum, val) => sum + val, 0);
+      const difference = 100 - total;
+      
+      if (Math.abs(difference) > 0) {
+        // Adjust the voted option to make total exactly 100%
+        adjustedResults[votedOptionIndex] += difference;
       }
-    });
 
-    // Ensure total is exactly 100%
-    const total = adjustedResults.reduce((sum, val) => sum + val, 0);
-    const difference = 100 - total;
-    
-    if (Math.abs(difference) > 0) {
-      // Adjust the voted option to make total exactly 100%
-      adjustedResults[votedOptionIndex] += difference;
+      // Round all values
+      return adjustedResults.map(val => Math.round(val));
+    } else {
+      // Number mode - add 1 vote to the user's choice
+      const adjustedResults = fakeResults.map((votes, idx) => {
+        if (idx === votedOptionIndex) {
+          return votes + 1;
+        }
+        return votes;
+      });
+      return adjustedResults;
     }
-
-    // Round all values
-    return adjustedResults.map(val => Math.round(val));
   };
 
   const displayResults = getAdjustedResults();
@@ -254,19 +266,37 @@ const PollView = () => {
               <div className="slider-option">
                 <div className="slider-question-options">
                   {options.map((opt, index) => {
-                    const percent = fakeResults[index] || 0;
+                    const value = fakeResults[index] || 0;
+                    const displayValue = fakeResultMode === 'percentage' 
+                      ? `${value}%` 
+                      : `${value.toLocaleString()}`;
+                    const optionsCount = options.length;
+                    const optionIndex = Math.floor(((sliderValue - 10) / 90) * optionsCount);
+                    const selectedIndex = Math.min(optionIndex, optionsCount - 1);
+                    const isSelected = selectedIndex === index;
+                    
                     return (
-                      <div key={index} className="slider-option-item">
-                        <span className="option-name">{opt}</span>
-                        <span className="option-percent">{percent}%</span>
+                      <div key={index} className={`slider-option-item ${isSelected ? 'selected-option' : ''}`}>
+                        <div className="option-info">
+                          <span className="option-name">{opt}</span>
+                          {isSelected && <span className="selection-indicator">✓ Selecting</span>}
+                        </div>
+                        <span className="option-percent">{displayValue}</span>
                       </div>
                     );
                   })}
                 </div>
                 <div className="slider-labels">
-                  <span>10</span>
-                  <span className="slider-current-value">{sliderValue}</span>
-                  <span>100</span>
+                  <span>Lower</span>
+                  <span className="slider-current-value">
+                    {(() => {
+                      const optionsCount = options.length;
+                      const optionIndex = Math.floor(((sliderValue - 10) / 90) * optionsCount);
+                      const selectedIndex = Math.min(optionIndex, optionsCount - 1);
+                      return options[selectedIndex];
+                    })()}
+                  </span>
+                  <span>Higher</span>
                 </div>
                 <input
                   type="range"
@@ -277,7 +307,7 @@ const PollView = () => {
                   className="vote-slider"
                 />
                 <p className="slider-value">
-                  Your Rating: {sliderValue}%
+                  Slide to select your choice
                 </p>
               </div>
             )}
@@ -296,18 +326,33 @@ const PollView = () => {
         <div className="results-display">
           <h3>Current Results:</h3>
           {options.map((opt, index) => {
-            const displayPercent = displayResults[index] || 0;
+            const value = displayResults[index] || 0;
             const isUserVote = hasVoted && userVotedOption === `option${index + 1}`;
+            
+            // Calculate bar width percentage
+            let barWidth;
+            let displayText;
+            
+            if (fakeResultMode === 'percentage') {
+              barWidth = value;
+              displayText = `${value}%`;
+            } else {
+              // Number mode - calculate percentage for bar width
+              const totalVotes = displayResults.reduce((sum, v) => sum + (v || 0), 0);
+              barWidth = totalVotes > 0 ? ((value / totalVotes) * 100).toFixed(1) : 0;
+              displayText = `${value.toLocaleString()} votes`;
+            }
+            
             return (
               <div key={index} className={`result-item ${isUserVote ? 'user-voted' : ''}`}>
                 <div className="result-header">
                   <span>{opt} {isUserVote && '✓'}</span>
-                  <span>{displayPercent}%</span>
+                  <span>{displayText}</span>
                 </div>
                 <div className="result-bar">
                   <div
                     className="result-fill"
-                    style={{ width: `${displayPercent}%` }}
+                    style={{ width: `${barWidth}%` }}
                   ></div>
                 </div>
               </div>

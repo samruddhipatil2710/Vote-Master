@@ -23,6 +23,9 @@ const LeaderDashboard = () => {
   const [editingPoll, setEditingPoll] = useState(null);
   const [showQR, setShowQR] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(null);
+  const [pollAnalytics, setPollAnalytics] = useState({});
+  const [showShareModal, setShowShareModal] = useState(null);
+  const [expandedPoll, setExpandedPoll] = useState(null);
   const [optionCount, setOptionCount] = useState(2);
   const [activeTab, setActiveTab] = useState('overview');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -31,6 +34,7 @@ const LeaderDashboard = () => {
     options: ['', ''],
     inputType: 'radio',
     fakeResults: [50, 50],
+    fakeResultMode: 'percentage',
     startDate: null,
     endDate: null,
     enableExpiry: false
@@ -108,11 +112,20 @@ const LeaderDashboard = () => {
       return;
     }
 
-    // Validate fake results total = 100%
-    const totalPercent = formData.fakeResults.reduce((sum, val) => sum + val, 0);
-    if (totalPercent !== 100) {
-      warning('Fake results must total 100%');
-      return;
+    // Validate fake results
+    if (formData.fakeResultMode === 'percentage') {
+      const totalPercent = formData.fakeResults.reduce((sum, val) => sum + val, 0);
+      if (totalPercent !== 100) {
+        warning('Fake results must total 100%');
+        return;
+      }
+    } else {
+      // For number mode, just check all values are non-negative
+      const hasNegative = formData.fakeResults.some(val => val < 0);
+      if (hasNegative) {
+        warning('Vote numbers cannot be negative');
+        return;
+      }
     }
 
     const pollData = {
@@ -120,6 +133,7 @@ const LeaderDashboard = () => {
       options: validOptions,
       inputType: formData.inputType,
       fakeResults: formData.fakeResults.slice(0, validOptions.length),
+      fakeResultMode: formData.fakeResultMode,
       leaderId: user.id,
       leaderName: user.name,
       startDate: formData.startDate ? formData.startDate.toISOString() : null,
@@ -149,6 +163,7 @@ const LeaderDashboard = () => {
       options: ['', ''],
       inputType: 'radio',
       fakeResults: [50, 50],
+      fakeResultMode: 'percentage',
       startDate: null,
       endDate: null,
       enableExpiry: false
@@ -168,6 +183,7 @@ const LeaderDashboard = () => {
       options: options,
       inputType: poll.inputType,
       fakeResults: fakeResults,
+      fakeResultMode: poll.fakeResultMode || 'percentage',
       startDate: poll.startDate ? new Date(poll.startDate) : null,
       endDate: poll.endDate ? new Date(poll.endDate) : null,
       enableExpiry: !!poll.endDate
@@ -213,9 +229,17 @@ const LeaderDashboard = () => {
     }
   };
 
-  const shareWhatsApp = (link) => {
+  const openShareModal = (pollId) => {
+    setShowShareModal(pollId);
+  };
+
+  const closeShareModal = () => {
+    setShowShareModal(null);
+  };
+
+  const shareWhatsApp = (link, question) => {
     const fullLink = getPollUrl(link);
-    const message = `🗳️ Vote in this poll:\n${fullLink}`;
+    const message = `🗳️ Vote in this poll: ${question}\n${fullLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -228,6 +252,11 @@ const LeaderDashboard = () => {
     const fullLink = getPollUrl(link);
     const text = `🗳️ Vote on: ${question}`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(fullLink)}`, '_blank');
+  };
+
+  const shareReddit = (link, question) => {
+    const fullLink = getPollUrl(link);
+    window.open(`https://reddit.com/submit?url=${encodeURIComponent(fullLink)}&title=${encodeURIComponent(question)}`, '_blank');
   };
 
   const downloadQR = (linkId) => {
@@ -278,35 +307,80 @@ const LeaderDashboard = () => {
     return polls;
   };
 
+  const loadPollAnalytics = async (pollId) => {
+    const data = await getPollAnalytics(pollId);
+    setPollAnalytics(prev => ({ ...prev, [pollId]: data }));
+  };
+
+  const toggleAnalytics = (pollId) => {
+    if (showAnalytics === pollId) {
+      setShowAnalytics(null);
+    } else {
+      setShowAnalytics(pollId);
+      if (!pollAnalytics[pollId]) {
+        loadPollAnalytics(pollId);
+      }
+    }
+  };
+
+  const togglePollExpand = (pollId) => {
+    setExpandedPoll(expandedPoll === pollId ? null : pollId);
+  };
+
   const renderPollCard = (poll) => {
     const options = poll.options || [poll.option1, poll.option2];
     const fakeResults = poll.fakeResults || [poll.fakeResultOption1, poll.fakeResultOption2];
     const votes = poll.votes || {};
     const totalVotes = Object.values(votes).reduce((sum, val) => sum + val, 0);
-    const analytics = getPollAnalytics(poll.id);
+    const analytics = pollAnalytics[poll.id];
+    const isExpanded = expandedPoll === poll.id;
 
     return (
-      <div key={poll.id} className="poll-card">
-        <div className="poll-header">
-          <div>
-            <h3>{poll.question}</h3>
-            <div className="poll-meta">
-              <span className="poll-type">{poll.inputType}</span>
+      <div key={poll.id} className={`poll-card-compact ${isExpanded ? 'expanded' : ''}`}>
+        {/* Compact Header - Always Visible */}
+        <div className="poll-card-compact-header" onClick={() => togglePollExpand(poll.id)}>
+          <div className="poll-compact-info">
+            <h3 className="poll-compact-title">{poll.question}</h3>
+            <div className="poll-compact-stats">
               {getStatusBadge(poll.status)}
+              <span className="compact-stat">
+                <FontAwesomeIcon icon={faEye} /> {poll.viewCount || 0}
+              </span>
+              <span className="compact-stat">
+                <FontAwesomeIcon icon={faVoteYea} /> {totalVotes}
+              </span>
             </div>
+          </div>
+          <div className="poll-card-actions">
+            <button 
+              className="quick-action-btn edit-quick-btn" 
+              onClick={(e) => { e.stopPropagation(); handleEdit(poll); }}
+              title="Edit Poll"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+            </button>
+            <button 
+              className="expand-toggle-btn"
+              onClick={(e) => { e.stopPropagation(); togglePollExpand(poll.id); }}
+            >
+              <FontAwesomeIcon icon={isExpanded ? faTimes : faChartBar} />
+            </button>
           </div>
         </div>
 
-        {poll.startDate && (
-          <p className="poll-schedule">
-            <strong>Start:</strong> {format(new Date(poll.startDate), 'PPp')}
-          </p>
-        )}
-        {poll.endDate && (
-          <p className="poll-schedule">
-            <strong>End:</strong> {format(new Date(poll.endDate), 'PPp')}
-          </p>
-        )}
+        {/* Expanded Details - Show only when expanded */}
+        {isExpanded && (
+          <div className="poll-card-expanded-content">
+            {poll.startDate && (
+              <p className="poll-schedule">
+                <strong>Start:</strong> {format(new Date(poll.startDate), 'PPp')}
+              </p>
+            )}
+            {poll.endDate && (
+              <p className="poll-schedule">
+                <strong>End:</strong> {format(new Date(poll.endDate), 'PPp')}
+              </p>
+            )}
 
         <div className="poll-options">
           {options.map((opt, idx) => (
@@ -315,54 +389,88 @@ const LeaderDashboard = () => {
         </div>
 
         <div className="results-section">
-          <h4>Real Results (Only you can see):</h4>
+          <div className="results-header">
+            <h4>📊 Real Results</h4>
+            <span className="results-badge private">🔒 Private - Only you can see</span>
+          </div>
           {options.map((opt, idx) => {
             const optVotes = votes[`option${idx + 1}`] || 0;
             const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
             return (
-              <div key={idx} className="result-bar">
-                <span>{opt}: {optVotes} votes ({percent}%)</span>
-                <div className="bar">
-                  <div className="fill actual" style={{ width: `${percent}%` }}></div>
+              <div key={idx} className="result-item-modern">
+                <div className="result-label-row">
+                  <span className="result-option-name">{opt}</span>
+                  <span className="result-stats">
+                    <strong>{optVotes}</strong> votes · <strong>{percent}%</strong>
+                  </span>
+                </div>
+                <div className="result-bar-modern">
+                  <div className="result-fill-modern actual" style={{ width: `${percent}%` }}>
+                    {percent > 5 && <span className="result-percent-label">{percent}%</span>}
+                  </div>
                 </div>
               </div>
             );
           })}
 
-          <h4 style={{ marginTop: '15px' }}>Fake Results (Voters see):</h4>
+          <div className="results-header" style={{ marginTop: '24px' }}>
+            <h4>👁️ Public Results</h4>
+            <span className="results-badge public">🌍 Public - Voters see this</span>
+          </div>
           {options.map((opt, idx) => {
-            const fakePercent = fakeResults[idx] || 0;
+            const fakeValue = fakeResults[idx] || 0;
+            const fakeResultMode = poll.fakeResultMode || 'percentage';
+            
+            // Calculate display values
+            let displayValue, barWidth;
+            if (fakeResultMode === 'percentage') {
+              displayValue = `${fakeValue}%`;
+              barWidth = fakeValue;
+            } else {
+              // Number mode
+              const totalFakeVotes = fakeResults.reduce((sum, v) => sum + (v || 0), 0);
+              const percentage = totalFakeVotes > 0 ? ((fakeValue / totalFakeVotes) * 100).toFixed(1) : 0;
+              displayValue = `${fakeValue.toLocaleString()} votes`;
+              barWidth = percentage;
+            }
+            
             return (
-              <div key={idx} className="result-bar">
-                <span>{opt}: {fakePercent}%</span>
-                <div className="bar">
-                  <div className="fill fake" style={{ width: `${fakePercent}%` }}></div>
+              <div key={idx} className="result-item-modern">
+                <div className="result-label-row">
+                  <span className="result-option-name">{opt}</span>
+                  <span className="result-stats">
+                    <strong>{displayValue}</strong>
+                  </span>
+                </div>
+                <div className="result-bar-modern">
+                  <div className="result-fill-modern fake" style={{ width: `${barWidth}%` }}>
+                    {barWidth > 5 && <span className="result-percent-label">{displayValue}</span>}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
 
-        {analytics && (
-          <div className="analytics-summary">
-            <p><strong>👁️ Views:</strong> {analytics.totalViews}</p>
-            <p><strong>🗳️ Votes:</strong> {analytics.totalVotes}</p>
-            <p><strong>📊 Conversion Rate:</strong> {analytics.conversionRate}%</p>
-            <button onClick={() => setShowAnalytics(showAnalytics === poll.id ? null : poll.id)} className="analytics-btn">
-              {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
-            </button>
-          </div>
-        )}
+        <div className="analytics-summary">
+          <p><strong>👁️ Views:</strong> {poll.viewCount || 0}</p>
+          <p><strong>🗳️ Votes:</strong> {totalVotes}</p>
+          <p><strong>📊 Conversion Rate:</strong> {poll.viewCount > 0 ? ((totalVotes / poll.viewCount) * 100).toFixed(1) : 0}%</p>
+          <button onClick={() => toggleAnalytics(poll.id)} className="analytics-btn">
+            {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
+          </button>
+        </div>
 
-        {showAnalytics === poll.id && analytics && (
+        {showAnalytics === poll.id && (
           <div className="analytics-details">
-            {analytics.peakHour && (
+            {!analytics && <p style={{ textAlign: 'center', padding: '20px' }}>Loading analytics...</p>}
+            {analytics && analytics.peakHour && analytics.peakHour.count > 0 && (
               <>
                 <h4>Peak Hour:</h4>
                 <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
               </>
             )}
-            {analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
+            {analytics && analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
               <>
                 <h4>Votes by Hour:</h4>
                 <div className="hour-chart">
@@ -374,6 +482,9 @@ const LeaderDashboard = () => {
                   ))}
                 </div>
               </>
+            )}
+            {analytics && (!analytics.voteHistory || analytics.voteHistory.length === 0) && (
+              <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No vote data available yet</p>
             )}
           </div>
         )}
@@ -391,39 +502,22 @@ const LeaderDashboard = () => {
         </div>
 
         <div className="share-section">
-          <button onClick={() => shareWhatsApp(poll.uniqueLink)} className="share-btn whatsapp">
-            WhatsApp
-          </button>
-          <button onClick={() => shareFacebook(poll.uniqueLink)} className="share-btn facebook">
-            Facebook
-          </button>
-          <button onClick={() => shareTwitter(poll.uniqueLink, poll.question)} className="share-btn twitter">
-            Twitter
-          </button>
-          <button onClick={() => setShowQR(showQR === poll.id ? null : poll.id)} className="share-btn qr">
-            QR Code
+          <button onClick={() => openShareModal(poll.id)} className="share-btn-modern">
+            <FontAwesomeIcon icon={faQrcode} />
+            Share Poll
           </button>
         </div>
 
-        {showQR === poll.id && (
-          <div className="qr-section">
-            <QRCodeSVG
-              id={`qr-${poll.uniqueLink}`}
-              value={getPollUrl(poll.uniqueLink)}
-              size={200}
-              level="H"
-              includeMargin={true}
-            />
-            <button onClick={() => downloadQR(poll.uniqueLink)} className="download-qr-btn">
-              Download QR
-            </button>
+            <div className="poll-actions">
+              <button onClick={(e) => { e.stopPropagation(); handleEdit(poll); }} className="edit-btn">
+                <FontAwesomeIcon icon={faEdit} /> Edit
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(poll.id); }} className="delete-btn">
+                <FontAwesomeIcon icon={faTrash} /> Delete
+              </button>
+            </div>
           </div>
         )}
-
-        <div className="poll-actions">
-          <button onClick={() => handleEdit(poll)} className="edit-btn">Edit</button>
-          <button onClick={() => handleDelete(poll.id)} className="delete-btn">Delete</button>
-        </div>
       </div>
     );
   };
@@ -576,6 +670,30 @@ const LeaderDashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Quick Stats Bar - StrawPoll Style */}
+                <div className="quick-stats-bar">
+                  <div className="quick-stat-item">
+                    <FontAwesomeIcon icon={faEye} />
+                    <span className="quick-stat-value">{polls.reduce((sum, p) => sum + (p.viewCount || 0), 0).toLocaleString()}</span>
+                    <span className="quick-stat-label">Total Views</span>
+                  </div>
+                  <div className="quick-stat-divider"></div>
+                  <div className="quick-stat-item">
+                    <FontAwesomeIcon icon={faVoteYea} />
+                    <span className="quick-stat-value">{totalVotes.toLocaleString()}</span>
+                    <span className="quick-stat-label">Total Votes</span>
+                  </div>
+                  <div className="quick-stat-divider"></div>
+                  <div className="quick-stat-item">
+                    <span className="quick-stat-value">
+                      {polls.reduce((sum, p) => sum + (p.viewCount || 0), 0) > 0 
+                        ? ((totalVotes / polls.reduce((sum, p) => sum + (p.viewCount || 0), 0)) * 100).toFixed(1)
+                        : '0'}%
+                    </span>
+                    <span className="quick-stat-label">Avg. Response Rate</span>
+                  </div>
+                </div>
               </>
             )}
 
@@ -586,8 +704,9 @@ const LeaderDashboard = () => {
         <div className="polls-section">
           <div className="section-header">
             <h2>My Polls</h2>
-            <button onClick={() => setShowForm(!showForm)} className="add-btn">
-              {showForm ? 'Cancel' : '+ Create New Poll'}
+            <button onClick={() => setShowForm(!showForm)} className="add-btn-modern">
+              <FontAwesomeIcon icon={showForm ? faTimes : faPlus} />
+              {showForm ? 'Cancel' : 'Create Poll'}
             </button>
           </div>
 
@@ -687,24 +806,81 @@ const LeaderDashboard = () => {
 
                 <div className="fake-results-section">
                   <h4>Set Fake Results (What voters will see)</h4>
-                  {formData.options.map((option, index) => (
-                    option.trim() && (
-                      <div key={index} className="form-group">
-                        <label>{option || `Option ${index + 1}`} (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={formData.fakeResults[index] || 0}
-                          onChange={(e) => updateFakeResult(index, e.target.value)}
-                        />
-                        <span className="percentage">{formData.fakeResults[index] || 0}%</span>
-                      </div>
-                    )
-                  ))}
+                  <div className="fake-result-mode-selector">
+                    <label>
+                      <input
+                        type="radio"
+                        name="fakeResultMode"
+                        value="percentage"
+                        checked={formData.fakeResultMode === 'percentage'}
+                        onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
+                      />
+                      {' '}Show as Percentage (%)
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="fakeResultMode"
+                        value="number"
+                        checked={formData.fakeResultMode === 'number'}
+                        onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
+                      />
+                      {' '}Show as Vote Count (Numbers)
+                    </label>
+                  </div>
+                  
+                  <div className="fake-results-inputs">
+                  {formData.options.length > 0 ? (
+                    formData.options.map((option, index) => {
+                      // Show input for all options, use placeholder text if option is empty
+                      const displayText = option && option.trim() ? option : `Option ${index + 1}`;
+                      
+                      return (
+                        <div key={index} className="fake-result-input-row">
+                          <div className="fake-result-option-info">
+                            <span className="fake-result-option-number">Option {index + 1}</span>
+                            <label className="fake-result-label">
+                              {displayText}
+                            </label>
+                          </div>
+                          <div className="fake-result-input-group">
+                            <input
+                              type="number"
+                              min="0"
+                              max={formData.fakeResultMode === 'percentage' ? "100" : undefined}
+                              step="1"
+                              value={formData.fakeResults[index] || 0}
+                              onChange={(e) => updateFakeResult(index, e.target.value)}
+                              placeholder={formData.fakeResultMode === 'number' ? 'e.g., 5000, 10000' : '0-100'}
+                              className="fake-result-input"
+                            />
+                            <span className="fake-result-display">
+                              {formData.fakeResultMode === 'percentage' 
+                                ? `${formData.fakeResults[index] || 0}%` 
+                                : `${(formData.fakeResults[index] || 0).toLocaleString()} votes`}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
+                      Add options above to set fake results
+                    </p>
+                  )}
+                  </div>
+                  
                   <p className="hint">
-                    Total: {formData.fakeResults.reduce((s, v) => s + v, 0)}% 
-                    {formData.fakeResults.reduce((s, v) => s + v, 0) !== 100 && ' (Must equal 100%)'}
+                    {formData.fakeResultMode === 'percentage' ? (
+                      <>
+                        Total: {formData.fakeResults.reduce((s, v) => s + v, 0)}% 
+                        {formData.fakeResults.reduce((s, v) => s + v, 0) !== 100 && ' (Must equal 100%)'}
+                      </>
+                    ) : (
+                      <>
+                        Total votes shown: {formData.fakeResults.reduce((s, v) => s + v, 0).toLocaleString()}
+                      </>
+                    )}
                   </p>
                 </div>
 
@@ -866,6 +1042,117 @@ const LeaderDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Professional Share Modal - StrawPoll Style */}
+      {showShareModal && (() => {
+        const poll = polls.find(p => p.id === showShareModal);
+        if (!poll) return null;
+        const pollLink = getPollUrl(poll.uniqueLink);
+        
+        return (
+          <div className="share-modal-overlay" onClick={closeShareModal}>
+            <div className="share-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="share-modal-header">
+                <div className="share-modal-icon">🔗</div>
+                <h2>Share Poll</h2>
+                <button onClick={closeShareModal} className="share-modal-close">
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+
+              <div className="share-modal-body">
+                {/* Share via Link */}
+                <div className="share-section-modal">
+                  <h3>📋 Share via link</h3>
+                  <p className="share-description">Use this link to share the poll with your participants.</p>
+                  <div className="share-link-input">
+                    <input 
+                      type="text" 
+                      value={pollLink} 
+                      readOnly 
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button onClick={() => copyLink(poll.uniqueLink)} className="copy-link-btn">
+                      <FontAwesomeIcon icon={faCopy} /> Copy
+                    </button>
+                  </div>
+                </div>
+
+                {/* Share on Social Media */}
+                <div className="share-section-modal">
+                  <h3>🌐 Share on social media</h3>
+                  <p className="share-description">Share this poll with friends & followers on social media channels.</p>
+                  <div className="social-share-buttons">
+                    <button 
+                      onClick={() => { shareWhatsApp(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                      className="social-btn whatsapp-btn"
+                    >
+                      <FontAwesomeIcon icon={faWhatsapp} /> WhatsApp
+                    </button>
+                    <button 
+                      onClick={() => { shareTwitter(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                      className="social-btn twitter-btn"
+                    >
+                      <FontAwesomeIcon icon={faTwitter} /> Twitter
+                    </button>
+                    <button 
+                      onClick={() => { shareFacebook(poll.uniqueLink); closeShareModal(); }} 
+                      className="social-btn facebook-btn"
+                    >
+                      <FontAwesomeIcon icon={faFacebook} /> Facebook
+                    </button>
+                    <button 
+                      onClick={() => { shareReddit(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                      className="social-btn reddit-btn"
+                    >
+                      Reddit
+                    </button>
+                  </div>
+                </div>
+
+                {/* Share with Live Audience */}
+                <div className="share-section-modal">
+                  <h3>👥 Share with live audience</h3>
+                  <p className="share-description">Easy access for your live audience while sharing your screen.</p>
+                  <div className="live-share-buttons">
+                    <button 
+                      onClick={() => setShowQR(showQR === poll.id ? null : poll.id)} 
+                      className="live-btn qr-btn"
+                    >
+                      <FontAwesomeIcon icon={faQrcode} /> QR Code
+                    </button>
+                    <button 
+                      onClick={() => window.open(pollLink, '_blank')} 
+                      className="live-btn preview-btn"
+                    >
+                      <FontAwesomeIcon icon={faEye} /> Preview Poll
+                    </button>
+                  </div>
+                  
+                  {showQR === poll.id && (
+                    <div className="qr-display">
+                      <QRCodeSVG
+                        id={`qr-${poll.uniqueLink}`}
+                        value={pollLink}
+                        size={200}
+                        level="H"
+                        includeMargin={true}
+                      />
+                      <button onClick={() => downloadQR(poll.uniqueLink)} className="download-qr-btn-modern">
+                        <FontAwesomeIcon icon={faDownload} /> Download QR Code
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="share-modal-footer">
+                <button onClick={closeShareModal} className="close-modal-btn">Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
