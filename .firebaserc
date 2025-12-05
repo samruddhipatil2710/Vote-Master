@@ -1,5 +1,5 @@
-dist
-.firebase
-node_modules
-.env
-.env.local
+{
+  "projects": {
+    "default": "vote-master-33611"
+  }
+}
