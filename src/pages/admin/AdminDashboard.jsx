@@ -5,7 +5,7 @@ import { getLeaders, saveLeader, deleteLeader, updateLeader, getPolls, deletePol
 import { QRCodeSVG } from 'qrcode.react';
 import { format } from 'date-fns';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChartLine, faUsers, faClipboardList, faChartBar, faCog, faSignOutAlt, faUser, faPlus, faEdit, faTrash, faCheckCircle, faTimesCircle, faCopy, faQrcode, faDownload, faVoteYea, faEye, faCalendarAlt, faClock, faSearch } from '@fortawesome/free-solid-svg-icons';
+import { faChartLine, faUsers, faClipboardList, faChartBar, faCog, faSignOutAlt, faUser, faPlus, faEdit, faTrash, faCheckCircle, faTimesCircle, faCopy, faQrcode, faDownload, faVoteYea, faEye, faCalendarAlt, faClock, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons';
 import { faWhatsapp, faFacebook, faTwitter } from '@fortawesome/free-brands-svg-icons';
 import { useMessageBox } from '../../hooks/useMessageBox';
 import MessageBox from '../../components/MessageBox';
