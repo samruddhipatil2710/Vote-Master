@@ -1,17 +1,18 @@
 /**
  * Get the base URL for the application
- * In production, uses environment variable
- * In development, uses window.location.origin
+ * Automatically uses the current domain (works with Vercel, localhost, etc.)
+ * Can be overridden with VITE_APP_URL environment variable
  */
 export const getBaseUrl = () => {
-  // Check if we have a production URL configured
+  // Check if we have a custom URL configured
   const envUrl = import.meta.env.VITE_APP_URL;
   
-  if (envUrl && envUrl !== 'http://localhost:5173') {
+  // Use custom URL if provided and not empty
+  if (envUrl && envUrl.trim() !== '') {
     return envUrl;
   }
   
-  // Fallback to current origin
+  // Use current origin (automatically works on Vercel, localhost, etc.)
   return window.location.origin;
 };
 
