@@ -20,7 +20,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Home />} />
-          
+
           <Route
             path="/admin/dashboard"
             element={
@@ -29,7 +29,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/leader/dashboard"
             element={
@@ -38,10 +38,11 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
-          <Route path="/poll/:linkId" element={<PollView />} />
-          
-          <Route path="*" element={<Navigate to="/" replace />} />
+
+
+          {/* Poll View - Clean URLs like domain.com/ram-chate */}
+          {/* Must be last to avoid matching other routes */}
+          <Route path="/:linkId" element={<PollView />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -149,7 +149,30 @@ export const deleteLeader = async (id) => {
 export const savePoll = async (poll) => {
   try {
     const pollId = poll.id || `poll_${Date.now()}`;
-    const uniqueLink = poll.uniqueLink || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Generate unique link based on leader name for readable URLs
+    // Example: "Ram Chate" -> "ram-chate-abc123"
+    let uniqueLink = poll.uniqueLink;
+    
+    if (!uniqueLink && poll.leaderName) {
+      // Create slug from leader name
+      const nameSlug = poll.leaderName
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')        // Replace spaces with hyphens
+        .replace(/[^\w\-]+/g, '')    // Remove special characters
+        .replace(/\-\-+/g, '-')      // Replace multiple hyphens
+        .replace(/^-+/, '')          // Trim start hyphens
+        .replace(/-+$/, '');         // Trim end hyphens
+      
+      // Add unique identifier to prevent conflicts
+      const uniqueId = Math.random().toString(36).substr(2, 6);
+      uniqueLink = `${nameSlug}-${uniqueId}`;
+    } else if (!uniqueLink) {
+      // Fallback if no leader name
+      uniqueLink = `poll-${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
     const pollRef = doc(db, 'polls', pollId);
     
     const pollData = {

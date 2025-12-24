@@ -18,10 +18,11 @@ export const getBaseUrl = () => {
 
 /**
  * Generate a full poll URL
+ * Now uses cleaner format: domain.com/ram-chate instead of domain.com/poll/random-id
  */
 export const getPollUrl = (uniqueLink) => {
   const baseUrl = getBaseUrl();
-  return `${baseUrl}/poll/${uniqueLink}`;
+  return `${baseUrl}/${uniqueLink}`;
 };
 
 /**
