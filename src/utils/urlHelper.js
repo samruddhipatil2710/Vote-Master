@@ -18,11 +18,20 @@ export const getBaseUrl = () => {
 
 /**
  * Generate a full poll URL
- * Now uses cleaner format: domain.com/ram-chate instead of domain.com/poll/random-id
+ * Now uses cleaner format: domain.com/poll-name instead of domain.com/poll/random-id
  */
 export const getPollUrl = (uniqueLink) => {
+  // Validate uniqueLink
+  if (!uniqueLink || typeof uniqueLink !== 'string' || uniqueLink.trim() === '') {
+    console.error('[getPollUrl] Invalid uniqueLink provided:', uniqueLink);
+    return '#invalid-poll-link';
+  }
+  
+  // Remove any slashes to prevent path issues
+  const cleanLink = uniqueLink.trim().replace(/\//g, '-');
+  
   const baseUrl = getBaseUrl();
-  return `${baseUrl}/${uniqueLink}`;
+  return `${baseUrl}/${cleanLink}`;
 };
 
 /**

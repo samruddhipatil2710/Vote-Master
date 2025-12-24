@@ -345,6 +345,15 @@ const LeaderDashboard = () => {
     const analytics = pollAnalytics[poll.id];
     const isExpanded = expandedPoll === poll.id;
 
+    // Debug: Log poll uniqueLink to help diagnose URL issues
+    if (!poll.uniqueLink) {
+      console.warn('[LeaderDashboard] Poll missing uniqueLink:', {
+        pollId: poll.id,
+        question: poll.question,
+        pollData: poll
+      });
+    }
+
     return (
       <div key={poll.id} className={`poll-card-compact ${isExpanded ? 'expanded' : ''}`}>
         {/* Compact Header - Always Visible */}
@@ -504,9 +513,14 @@ const LeaderDashboard = () => {
               <input
                 type="text"
                 readOnly
-                value={getPollUrl(poll.uniqueLink)}
+                value={poll.uniqueLink ? getPollUrl(poll.uniqueLink) : 'Error: Poll link not generated'}
+                style={!poll.uniqueLink ? { color: 'red', fontStyle: 'italic' } : {}}
               />
-              <button onClick={() => copyLink(poll.uniqueLink)} className="copy-btn">
+              <button
+                onClick={() => copyLink(poll.uniqueLink)}
+                className="copy-btn"
+                disabled={!poll.uniqueLink}
+              >
                 Copy
               </button>
             </div>
@@ -752,7 +766,7 @@ const LeaderDashboard = () => {
                             required
                           />
                           <small style={{ color: '#666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                            This will be your poll link: yourdomain.com/{formData.pollName || 'your-poll-name'}
+                            This will be your poll link: <strong>{window.location.host}/{formData.pollName || 'your-poll-name'}</strong>
                           </small>
                         </div>
 
