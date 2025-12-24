@@ -150,27 +150,22 @@ export const savePoll = async (poll) => {
   try {
     const pollId = poll.id || `poll_${Date.now()}`;
     
-    // Generate unique link based on leader name for readable URLs
-    // Example: "Ram Chate" -> "ram-chate-abc123"
-    let uniqueLink = poll.uniqueLink;
+    // Use the custom poll name provided by the user
+    let uniqueLink = poll.uniqueLink || poll.pollName;
     
-    if (!uniqueLink && poll.leaderName) {
-      // Create slug from leader name
-      const nameSlug = poll.leaderName
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')        // Replace spaces with hyphens
-        .replace(/[^\w\-]+/g, '')    // Remove special characters
-        .replace(/\-\-+/g, '-')      // Replace multiple hyphens
-        .replace(/^-+/, '')          // Trim start hyphens
-        .replace(/-+$/, '');         // Trim end hyphens
+    if (!uniqueLink) {
+      throw new Error('Poll name is required');
+    }
+    
+    // Check if this poll name already exists (only for new polls)
+    if (!poll.id) {
+      const pollsRef = collection(db, 'polls');
+      const q = query(pollsRef, where('uniqueLink', '==', uniqueLink));
+      const snapshot = await getDocs(q);
       
-      // Add unique identifier to prevent conflicts
-      const uniqueId = Math.random().toString(36).substr(2, 6);
-      uniqueLink = `${nameSlug}-${uniqueId}`;
-    } else if (!uniqueLink) {
-      // Fallback if no leader name
-      uniqueLink = `poll-${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!snapshot.empty) {
+        throw new Error('This poll name is already taken. Please choose a different name.');
+      }
     }
     
     const pollRef = doc(db, 'polls', pollId);

@@ -31,6 +31,7 @@ const LeaderDashboard = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formData, setFormData] = useState({
     question: '',
+    pollName: '',
     options: ['', ''],
     inputType: 'radio',
     fakeResults: [50, 50],
@@ -105,6 +106,12 @@ const LeaderDashboard = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validate poll name
+    if (!formData.pollName || formData.pollName.trim() === '') {
+      warning('Please provide a poll name');
+      return;
+    }
+
     // Validate options
     const validOptions = formData.options.filter(opt => opt.trim() !== '');
     if (validOptions.length < 2) {
@@ -130,6 +137,7 @@ const LeaderDashboard = () => {
 
     const pollData = {
       question: formData.question,
+      pollName: formData.pollName.trim(),
       options: validOptions,
       inputType: formData.inputType,
       fakeResults: formData.fakeResults.slice(0, validOptions.length),
@@ -160,6 +168,7 @@ const LeaderDashboard = () => {
   const resetForm = () => {
     setFormData({
       question: '',
+      pollName: '',
       options: ['', ''],
       inputType: 'radio',
       fakeResults: [50, 50],
@@ -180,6 +189,7 @@ const LeaderDashboard = () => {
     setOptionCount(options.length);
     setFormData({
       question: poll.question,
+      pollName: poll.uniqueLink || '',
       options: options,
       inputType: poll.inputType,
       fakeResults: fakeResults,
@@ -266,7 +276,7 @@ const LeaderDashboard = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const img = new Image();
-      
+
       img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
@@ -277,7 +287,7 @@ const LeaderDashboard = () => {
         link.href = url;
         link.click();
       };
-      
+
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     }
   };
@@ -352,14 +362,14 @@ const LeaderDashboard = () => {
             </div>
           </div>
           <div className="poll-card-actions">
-            <button 
-              className="quick-action-btn edit-quick-btn" 
+            <button
+              className="quick-action-btn edit-quick-btn"
               onClick={(e) => { e.stopPropagation(); handleEdit(poll); }}
               title="Edit Poll"
             >
               <FontAwesomeIcon icon={faEdit} />
             </button>
-            <button 
+            <button
               className="expand-toggle-btn"
               onClick={(e) => { e.stopPropagation(); togglePollExpand(poll.id); }}
             >
@@ -382,131 +392,131 @@ const LeaderDashboard = () => {
               </p>
             )}
 
-        <div className="poll-options">
-          {options.map((opt, idx) => (
-            <p key={idx}><strong>Option {idx + 1}:</strong> {opt}</p>
-          ))}
-        </div>
+            <div className="poll-options">
+              {options.map((opt, idx) => (
+                <p key={idx}><strong>Option {idx + 1}:</strong> {opt}</p>
+              ))}
+            </div>
 
-        <div className="results-section">
-          <div className="results-header">
-            <h4>📊 Real Results</h4>
-            <span className="results-badge private">🔒 Private - Only you can see</span>
-          </div>
-          {options.map((opt, idx) => {
-            const optVotes = votes[`option${idx + 1}`] || 0;
-            const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
-            return (
-              <div key={idx} className="result-item-modern">
-                <div className="result-label-row">
-                  <span className="result-option-name">{opt}</span>
-                  <span className="result-stats">
-                    <strong>{optVotes}</strong> votes · <strong>{percent}%</strong>
-                  </span>
-                </div>
-                <div className="result-bar-modern">
-                  <div className="result-fill-modern actual" style={{ width: `${percent}%` }}>
-                    {percent > 5 && <span className="result-percent-label">{percent}%</span>}
-                  </div>
-                </div>
+            <div className="results-section">
+              <div className="results-header">
+                <h4>📊 Real Results</h4>
+                <span className="results-badge private">🔒 Private - Only you can see</span>
               </div>
-            );
-          })}
-
-          <div className="results-header" style={{ marginTop: '24px' }}>
-            <h4>👁️ Public Results</h4>
-            <span className="results-badge public">🌍 Public - Voters see this</span>
-          </div>
-          {options.map((opt, idx) => {
-            const fakeValue = fakeResults[idx] || 0;
-            const fakeResultMode = poll.fakeResultMode || 'percentage';
-            
-            // Calculate display values
-            let displayValue, barWidth;
-            if (fakeResultMode === 'percentage') {
-              displayValue = `${fakeValue}%`;
-              barWidth = fakeValue;
-            } else {
-              // Number mode
-              const totalFakeVotes = fakeResults.reduce((sum, v) => sum + (v || 0), 0);
-              const percentage = totalFakeVotes > 0 ? ((fakeValue / totalFakeVotes) * 100).toFixed(1) : 0;
-              displayValue = `${fakeValue.toLocaleString()} votes`;
-              barWidth = percentage;
-            }
-            
-            return (
-              <div key={idx} className="result-item-modern">
-                <div className="result-label-row">
-                  <span className="result-option-name">{opt}</span>
-                  <span className="result-stats">
-                    <strong>{displayValue}</strong>
-                  </span>
-                </div>
-                <div className="result-bar-modern">
-                  <div className="result-fill-modern fake" style={{ width: `${barWidth}%` }}>
-                    {barWidth > 5 && <span className="result-percent-label">{displayValue}</span>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="analytics-summary">
-          <p><strong>👁️ Views:</strong> {poll.viewCount || 0}</p>
-          <p><strong>🗳️ Votes:</strong> {totalVotes}</p>
-          <p><strong>📊 Conversion Rate:</strong> {poll.viewCount > 0 ? ((totalVotes / poll.viewCount) * 100).toFixed(1) : 0}%</p>
-          <button onClick={() => toggleAnalytics(poll.id)} className="analytics-btn">
-            {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
-          </button>
-        </div>
-
-        {showAnalytics === poll.id && (
-          <div className="analytics-details">
-            {!analytics && <p style={{ textAlign: 'center', padding: '20px' }}>Loading analytics...</p>}
-            {analytics && analytics.peakHour && analytics.peakHour.count > 0 && (
-              <>
-                <h4>Peak Hour:</h4>
-                <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
-              </>
-            )}
-            {analytics && analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
-              <>
-                <h4>Votes by Hour:</h4>
-                <div className="hour-chart">
-                  {Object.entries(analytics.votesByHour).slice(0, 24).map(([hour, count]) => (
-                    <div key={hour} className="hour-bar" title={`${hour}:00 - ${count} votes`}>
-                      <div className="bar-fill" style={{ height: `${(count / Math.max(...Object.values(analytics.votesByHour))) * 100}%` }}></div>
-                      <span className="hour-label">{hour}</span>
+              {options.map((opt, idx) => {
+                const optVotes = votes[`option${idx + 1}`] || 0;
+                const percent = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : 0;
+                return (
+                  <div key={idx} className="result-item-modern">
+                    <div className="result-label-row">
+                      <span className="result-option-name">{opt}</span>
+                      <span className="result-stats">
+                        <strong>{optVotes}</strong> votes · <strong>{percent}%</strong>
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {analytics && (!analytics.voteHistory || analytics.voteHistory.length === 0) && (
-              <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No vote data available yet</p>
-            )}
-          </div>
-        )}
+                    <div className="result-bar-modern">
+                      <div className="result-fill-modern actual" style={{ width: `${percent}%` }}>
+                        {percent > 5 && <span className="result-percent-label">{percent}%</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
-        <div className="poll-link">
-          <small>Poll Link:</small>
-          <input
-            type="text"
-            readOnly
-            value={getPollUrl(poll.uniqueLink)}
-          />
-          <button onClick={() => copyLink(poll.uniqueLink)} className="copy-btn">
-            Copy
-          </button>
-        </div>
+              <div className="results-header" style={{ marginTop: '24px' }}>
+                <h4>👁️ Public Results</h4>
+                <span className="results-badge public">🌍 Public - Voters see this</span>
+              </div>
+              {options.map((opt, idx) => {
+                const fakeValue = fakeResults[idx] || 0;
+                const fakeResultMode = poll.fakeResultMode || 'percentage';
 
-        <div className="share-section">
-          <button onClick={() => openShareModal(poll.id)} className="share-btn-modern">
-            <FontAwesomeIcon icon={faQrcode} />
-            Share Poll
-          </button>
-        </div>
+                // Calculate display values
+                let displayValue, barWidth;
+                if (fakeResultMode === 'percentage') {
+                  displayValue = `${fakeValue}%`;
+                  barWidth = fakeValue;
+                } else {
+                  // Number mode
+                  const totalFakeVotes = fakeResults.reduce((sum, v) => sum + (v || 0), 0);
+                  const percentage = totalFakeVotes > 0 ? ((fakeValue / totalFakeVotes) * 100).toFixed(1) : 0;
+                  displayValue = `${fakeValue.toLocaleString()} votes`;
+                  barWidth = percentage;
+                }
+
+                return (
+                  <div key={idx} className="result-item-modern">
+                    <div className="result-label-row">
+                      <span className="result-option-name">{opt}</span>
+                      <span className="result-stats">
+                        <strong>{displayValue}</strong>
+                      </span>
+                    </div>
+                    <div className="result-bar-modern">
+                      <div className="result-fill-modern fake" style={{ width: `${barWidth}%` }}>
+                        {barWidth > 5 && <span className="result-percent-label">{displayValue}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="analytics-summary">
+              <p><strong>👁️ Views:</strong> {poll.viewCount || 0}</p>
+              <p><strong>🗳️ Votes:</strong> {totalVotes}</p>
+              <p><strong>📊 Conversion Rate:</strong> {poll.viewCount > 0 ? ((totalVotes / poll.viewCount) * 100).toFixed(1) : 0}%</p>
+              <button onClick={() => toggleAnalytics(poll.id)} className="analytics-btn">
+                {showAnalytics === poll.id ? 'Hide' : 'Show'} Analytics
+              </button>
+            </div>
+
+            {showAnalytics === poll.id && (
+              <div className="analytics-details">
+                {!analytics && <p style={{ textAlign: 'center', padding: '20px' }}>Loading analytics...</p>}
+                {analytics && analytics.peakHour && analytics.peakHour.count > 0 && (
+                  <>
+                    <h4>Peak Hour:</h4>
+                    <p>{analytics.peakHour.hour}:00 - {analytics.peakHour.count} votes</p>
+                  </>
+                )}
+                {analytics && analytics.votesByHour && Object.keys(analytics.votesByHour).length > 0 && (
+                  <>
+                    <h4>Votes by Hour:</h4>
+                    <div className="hour-chart">
+                      {Object.entries(analytics.votesByHour).slice(0, 24).map(([hour, count]) => (
+                        <div key={hour} className="hour-bar" title={`${hour}:00 - ${count} votes`}>
+                          <div className="bar-fill" style={{ height: `${(count / Math.max(...Object.values(analytics.votesByHour))) * 100}%` }}></div>
+                          <span className="hour-label">{hour}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {analytics && (!analytics.voteHistory || analytics.voteHistory.length === 0) && (
+                  <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No vote data available yet</p>
+                )}
+              </div>
+            )}
+
+            <div className="poll-link">
+              <small>Poll Link:</small>
+              <input
+                type="text"
+                readOnly
+                value={getPollUrl(poll.uniqueLink)}
+              />
+              <button onClick={() => copyLink(poll.uniqueLink)} className="copy-btn">
+                Copy
+              </button>
+            </div>
+
+            <div className="share-section">
+              <button onClick={() => openShareModal(poll.id)} className="share-btn-modern">
+                <FontAwesomeIcon icon={faQrcode} />
+                Share Poll
+              </button>
+            </div>
 
             <div className="poll-actions">
               <button onClick={(e) => { e.stopPropagation(); handleEdit(poll); }} className="edit-btn">
@@ -543,21 +553,21 @@ const LeaderDashboard = () => {
         </div>
 
         <nav className="sidebar-nav-leader">
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'overview' ? 'active' : ''}`}
             onClick={() => setActiveTab('overview')}
           >
             <FontAwesomeIcon icon={faChartLine} className="nav-icon" />
             <span className="nav-text">Overview</span>
           </button>
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'polls' ? 'active' : ''}`}
             onClick={() => setActiveTab('polls')}
           >
             <FontAwesomeIcon icon={faClipboardList} className="nav-icon" />
             <span className="nav-text">My Polls</span>
           </button>
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'active' ? 'active' : ''}`}
             onClick={() => setActiveTab('active')}
           >
@@ -565,7 +575,7 @@ const LeaderDashboard = () => {
             <span className="nav-text">Active Polls</span>
             <span className="badge-count">{polls.filter(p => p.status === 'active').length}</span>
           </button>
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'scheduled' ? 'active' : ''}`}
             onClick={() => setActiveTab('scheduled')}
           >
@@ -573,7 +583,7 @@ const LeaderDashboard = () => {
             <span className="nav-text">Scheduled</span>
             <span className="badge-count">{polls.filter(p => p.status === 'scheduled').length}</span>
           </button>
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'expired' ? 'active' : ''}`}
             onClick={() => setActiveTab('expired')}
           >
@@ -581,7 +591,7 @@ const LeaderDashboard = () => {
             <span className="nav-text">Expired</span>
             <span className="badge-count">{polls.filter(p => p.status === 'expired').length}</span>
           </button>
-          <button 
+          <button
             className={`nav-item-leader ${activeTab === 'analytics' ? 'active' : ''}`}
             onClick={() => setActiveTab('analytics')}
           >
@@ -687,7 +697,7 @@ const LeaderDashboard = () => {
                   <div className="quick-stat-divider"></div>
                   <div className="quick-stat-item">
                     <span className="quick-stat-value">
-                      {polls.reduce((sum, p) => sum + (p.viewCount || 0), 0) > 0 
+                      {polls.reduce((sum, p) => sum + (p.viewCount || 0), 0) > 0
                         ? ((totalVotes / polls.reduce((sum, p) => sum + (p.viewCount || 0), 0)) * 100).toFixed(1)
                         : '0'}%
                     </span>
@@ -701,210 +711,231 @@ const LeaderDashboard = () => {
             {(activeTab === 'polls' || activeTab === 'overview') && (
               <>
 
-        <div className="polls-section">
-          <div className="section-header">
-            <h2>My Polls</h2>
-            <button onClick={() => setShowForm(!showForm)} className="add-btn-modern">
-              <FontAwesomeIcon icon={showForm ? faTimes : faPlus} />
-              {showForm ? 'Cancel' : 'Create Poll'}
-            </button>
-          </div>
-
-          {showForm && (
-            <div className="poll-form-card">
-              <h3>{editingPoll ? 'Edit Poll' : 'Create New Poll'}</h3>
-              <form onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label>Poll Question *</label>
-                  <input
-                    type="text"
-                    value={formData.question}
-                    onChange={(e) => setFormData({ ...formData, question: e.target.value })}
-                    placeholder="Enter your poll question"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Number of Options ({optionCount}/10)</label>
-                  <div className="option-controls">
-                    <button type="button" onClick={addOption} disabled={optionCount >= 10}>
-                      + Add Option
+                <div className="polls-section">
+                  <div className="section-header">
+                    <h2>My Polls</h2>
+                    <button onClick={() => setShowForm(!showForm)} className="add-btn-modern">
+                      <FontAwesomeIcon icon={showForm ? faTimes : faPlus} />
+                      {showForm ? 'Cancel' : 'Create Poll'}
                     </button>
                   </div>
-                </div>
 
-                {formData.options.map((option, index) => (
-                  <div key={index} className="option-input-group">
-                    <label>Option {index + 1} *</label>
-                    <div className="option-input-row">
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => updateOption(index, e.target.value)}
-                        placeholder={`Enter option ${index + 1}`}
-                        required
-                      />
-                      {optionCount > 2 && (
-                        <button type="button" onClick={() => removeOption(index)} className="remove-btn">
-                          
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  {showForm && (
+                    <div className="poll-form-card">
+                      <h3>{editingPoll ? 'Edit Poll' : 'Create New Poll'}</h3>
+                      <form onSubmit={handleSubmit}>
+                        <div className="form-group">
+                          <label>Poll Question *</label>
+                          <input
+                            type="text"
+                            value={formData.question}
+                            onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                            placeholder="Enter your poll question"
+                            required
+                          />
+                        </div>
 
-                <div className="form-group">
-                  <label>Input Type</label>
-                  <select
-                    value={formData.inputType}
-                    onChange={(e) => setFormData({ ...formData, inputType: e.target.value })}
-                  >
-                    <option value="radio">Radio Button</option>
-                    <option value="slider">Slider</option>
-                  </select>
-                </div>
+                        <div className="form-group">
+                          <label>Poll Name (URL) *</label>
+                          <input
+                            type="text"
+                            value={formData.pollName || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                                .toLowerCase()
+                                .replace(/\s+/g, '-')
+                                .replace(/[^\w\-]+/g, '')
+                                .replace(/\-\-+/g, '-');
+                              setFormData({ ...formData, pollName: value });
+                            }}
+                            placeholder="e.g., election-2024, favorite-movie"
+                            required
+                          />
+                          <small style={{ color: '#666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                            This will be your poll link: yourdomain.com/{formData.pollName || 'your-poll-name'}
+                          </small>
+                        </div>
 
-                <div className="form-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={formData.enableExpiry}
-                      onChange={(e) => setFormData({ ...formData, enableExpiry: e.target.checked })}
-                    />
-                    {' '}Enable Poll Scheduling/Expiry
-                  </label>
-                </div>
-
-                {formData.enableExpiry && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Start Date (Optional)</label>
-                      <DatePicker
-                        selected={formData.startDate}
-                        onChange={(date) => setFormData({ ...formData, startDate: date })}
-                        showTimeSelect
-                        dateFormat="Pp"
-                        placeholderText="Select start date/time"
-                        className="date-input"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>End Date</label>
-                      <DatePicker
-                        selected={formData.endDate}
-                        onChange={(date) => setFormData({ ...formData, endDate: date })}
-                        showTimeSelect
-                        dateFormat="Pp"
-                        placeholderText="Select end date/time"
-                        minDate={formData.startDate || new Date()}
-                        className="date-input"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="fake-results-section">
-                  <h4>Set Fake Results (What voters will see)</h4>
-                  <div className="fake-result-mode-selector">
-                    <label>
-                      <input
-                        type="radio"
-                        name="fakeResultMode"
-                        value="percentage"
-                        checked={formData.fakeResultMode === 'percentage'}
-                        onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
-                      />
-                      {' '}Show as Percentage (%)
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name="fakeResultMode"
-                        value="number"
-                        checked={formData.fakeResultMode === 'number'}
-                        onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
-                      />
-                      {' '}Show as Vote Count (Numbers)
-                    </label>
-                  </div>
-                  
-                  <div className="fake-results-inputs">
-                  {formData.options.length > 0 ? (
-                    formData.options.map((option, index) => {
-                      // Show input for all options, use placeholder text if option is empty
-                      const displayText = option && option.trim() ? option : `Option ${index + 1}`;
-                      
-                      return (
-                        <div key={index} className="fake-result-input-row">
-                          <div className="fake-result-option-info">
-                            <span className="fake-result-option-number">Option {index + 1}</span>
-                            <label className="fake-result-label">
-                              {displayText}
-                            </label>
-                          </div>
-                          <div className="fake-result-input-group">
-                            <input
-                              type="number"
-                              min="0"
-                              max={formData.fakeResultMode === 'percentage' ? "100" : undefined}
-                              step="1"
-                              value={formData.fakeResults[index] || 0}
-                              onChange={(e) => updateFakeResult(index, e.target.value)}
-                              placeholder={formData.fakeResultMode === 'number' ? 'e.g., 5000, 10000' : '0-100'}
-                              className="fake-result-input"
-                            />
-                            <span className="fake-result-display">
-                              {formData.fakeResultMode === 'percentage' 
-                                ? `${formData.fakeResults[index] || 0}%` 
-                                : `${(formData.fakeResults[index] || 0).toLocaleString()} votes`}
-                            </span>
+                        <div className="form-group">
+                          <label>Number of Options ({optionCount}/10)</label>
+                          <div className="option-controls">
+                            <button type="button" onClick={addOption} disabled={optionCount >= 10}>
+                              + Add Option
+                            </button>
                           </div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
-                      Add options above to set fake results
-                    </p>
+
+                        {formData.options.map((option, index) => (
+                          <div key={index} className="option-input-group">
+                            <label>Option {index + 1} *</label>
+                            <div className="option-input-row">
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) => updateOption(index, e.target.value)}
+                                placeholder={`Enter option ${index + 1}`}
+                                required
+                              />
+                              {optionCount > 2 && (
+                                <button type="button" onClick={() => removeOption(index)} className="remove-btn">
+
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        <div className="form-group">
+                          <label>Input Type</label>
+                          <select
+                            value={formData.inputType}
+                            onChange={(e) => setFormData({ ...formData, inputType: e.target.value })}
+                          >
+                            <option value="radio">Radio Button</option>
+                            <option value="slider">Slider</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={formData.enableExpiry}
+                              onChange={(e) => setFormData({ ...formData, enableExpiry: e.target.checked })}
+                            />
+                            {' '}Enable Poll Scheduling/Expiry
+                          </label>
+                        </div>
+
+                        {formData.enableExpiry && (
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label>Start Date (Optional)</label>
+                              <DatePicker
+                                selected={formData.startDate}
+                                onChange={(date) => setFormData({ ...formData, startDate: date })}
+                                showTimeSelect
+                                dateFormat="Pp"
+                                placeholderText="Select start date/time"
+                                className="date-input"
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>End Date</label>
+                              <DatePicker
+                                selected={formData.endDate}
+                                onChange={(date) => setFormData({ ...formData, endDate: date })}
+                                showTimeSelect
+                                dateFormat="Pp"
+                                placeholderText="Select end date/time"
+                                minDate={formData.startDate || new Date()}
+                                className="date-input"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="fake-results-section">
+                          <h4>Set Fake Results (What voters will see)</h4>
+                          <div className="fake-result-mode-selector">
+                            <label>
+                              <input
+                                type="radio"
+                                name="fakeResultMode"
+                                value="percentage"
+                                checked={formData.fakeResultMode === 'percentage'}
+                                onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
+                              />
+                              {' '}Show as Percentage (%)
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="fakeResultMode"
+                                value="number"
+                                checked={formData.fakeResultMode === 'number'}
+                                onChange={(e) => setFormData({ ...formData, fakeResultMode: e.target.value })}
+                              />
+                              {' '}Show as Vote Count (Numbers)
+                            </label>
+                          </div>
+
+                          <div className="fake-results-inputs">
+                            {formData.options.length > 0 ? (
+                              formData.options.map((option, index) => {
+                                // Show input for all options, use placeholder text if option is empty
+                                const displayText = option && option.trim() ? option : `Option ${index + 1}`;
+
+                                return (
+                                  <div key={index} className="fake-result-input-row">
+                                    <div className="fake-result-option-info">
+                                      <span className="fake-result-option-number">Option {index + 1}</span>
+                                      <label className="fake-result-label">
+                                        {displayText}
+                                      </label>
+                                    </div>
+                                    <div className="fake-result-input-group">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={formData.fakeResultMode === 'percentage' ? "100" : undefined}
+                                        step="1"
+                                        value={formData.fakeResults[index] || 0}
+                                        onChange={(e) => updateFakeResult(index, e.target.value)}
+                                        placeholder={formData.fakeResultMode === 'number' ? 'e.g., 5000, 10000' : '0-100'}
+                                        className="fake-result-input"
+                                      />
+                                      <span className="fake-result-display">
+                                        {formData.fakeResultMode === 'percentage'
+                                          ? `${formData.fakeResults[index] || 0}%`
+                                          : `${(formData.fakeResults[index] || 0).toLocaleString()} votes`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
+                                Add options above to set fake results
+                              </p>
+                            )}
+                          </div>
+
+                          <p className="hint">
+                            {formData.fakeResultMode === 'percentage' ? (
+                              <>
+                                Total: {formData.fakeResults.reduce((s, v) => s + v, 0)}%
+                                {formData.fakeResults.reduce((s, v) => s + v, 0) !== 100 && ' (Must equal 100%)'}
+                              </>
+                            ) : (
+                              <>
+                                Total votes shown: {formData.fakeResults.reduce((s, v) => s + v, 0).toLocaleString()}
+                              </>
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="form-actions">
+                          <button type="submit" className="submit-btn">
+                            {editingPoll ? 'Update Poll' : 'Create Poll'}
+                          </button>
+                          <button type="button" onClick={resetForm} className="cancel-btn">
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
-                  </div>
-                  
-                  <p className="hint">
-                    {formData.fakeResultMode === 'percentage' ? (
-                      <>
-                        Total: {formData.fakeResults.reduce((s, v) => s + v, 0)}% 
-                        {formData.fakeResults.reduce((s, v) => s + v, 0) !== 100 && ' (Must equal 100%)'}
-                      </>
+
+                  <div className="polls-grid">
+                    {getFilteredPolls().length === 0 ? (
+                      <p className="no-data">No polls created yet. Click "Create New Poll" to start.</p>
                     ) : (
-                      <>
-                        Total votes shown: {formData.fakeResults.reduce((s, v) => s + v, 0).toLocaleString()}
-                      </>
+                      getFilteredPolls().map((poll) => renderPollCard(poll))
                     )}
-                  </p>
+                  </div>
                 </div>
-
-                <div className="form-actions">
-                  <button type="submit" className="submit-btn">
-                    {editingPoll ? 'Update Poll' : 'Create Poll'}
-                  </button>
-                  <button type="button" onClick={resetForm} className="cancel-btn">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="polls-grid">
-            {getFilteredPolls().length === 0 ? (
-              <p className="no-data">No polls created yet. Click "Create New Poll" to start.</p>
-            ) : (
-              getFilteredPolls().map((poll) => renderPollCard(poll))
-            )}
-          </div>
-        </div>
-            </>
+              </>
             )}
 
             {/* Active Polls Tab */}
@@ -984,7 +1015,7 @@ const LeaderDashboard = () => {
                     </div>
                     <div className="analytics-stat-card">
                       <h3>Best Performing</h3>
-                      <p className="big-number">{polls.length > 0 ? 
+                      <p className="big-number">{polls.length > 0 ?
                         (() => {
                           const bestPoll = polls.reduce((max, p) => {
                             const pVotes = Object.values(p.votes || {}).reduce((s, v) => s + v, 0);
@@ -1017,15 +1048,15 @@ const LeaderDashboard = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Render message boxes */}
       {messages.map(msg => (
-        <MessageBox 
-          key={msg.id} 
+        <MessageBox
+          key={msg.id}
           type={msg.type}
           message={msg.message}
           duration={msg.duration}
-          onClose={() => removeMessage(msg.id)} 
+          onClose={() => removeMessage(msg.id)}
         />
       ))}
 
@@ -1048,7 +1079,7 @@ const LeaderDashboard = () => {
         const poll = polls.find(p => p.id === showShareModal);
         if (!poll) return null;
         const pollLink = getPollUrl(poll.uniqueLink);
-        
+
         return (
           <div className="share-modal-overlay" onClick={closeShareModal}>
             <div className="share-modal" onClick={(e) => e.stopPropagation()}>
@@ -1066,10 +1097,10 @@ const LeaderDashboard = () => {
                   <h3>📋 Share via link</h3>
                   <p className="share-description">Use this link to share the poll with your participants.</p>
                   <div className="share-link-input">
-                    <input 
-                      type="text" 
-                      value={pollLink} 
-                      readOnly 
+                    <input
+                      type="text"
+                      value={pollLink}
+                      readOnly
                       onClick={(e) => e.target.select()}
                     />
                     <button onClick={() => copyLink(poll.uniqueLink)} className="copy-link-btn">
@@ -1083,26 +1114,26 @@ const LeaderDashboard = () => {
                   <h3>🌐 Share on social media</h3>
                   <p className="share-description">Share this poll with friends & followers on social media channels.</p>
                   <div className="social-share-buttons">
-                    <button 
-                      onClick={() => { shareWhatsApp(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                    <button
+                      onClick={() => { shareWhatsApp(poll.uniqueLink, poll.question); closeShareModal(); }}
                       className="social-btn whatsapp-btn"
                     >
                       <FontAwesomeIcon icon={faWhatsapp} /> WhatsApp
                     </button>
-                    <button 
-                      onClick={() => { shareTwitter(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                    <button
+                      onClick={() => { shareTwitter(poll.uniqueLink, poll.question); closeShareModal(); }}
                       className="social-btn twitter-btn"
                     >
                       <FontAwesomeIcon icon={faTwitter} /> Twitter
                     </button>
-                    <button 
-                      onClick={() => { shareFacebook(poll.uniqueLink); closeShareModal(); }} 
+                    <button
+                      onClick={() => { shareFacebook(poll.uniqueLink); closeShareModal(); }}
                       className="social-btn facebook-btn"
                     >
                       <FontAwesomeIcon icon={faFacebook} /> Facebook
                     </button>
-                    <button 
-                      onClick={() => { shareReddit(poll.uniqueLink, poll.question); closeShareModal(); }} 
+                    <button
+                      onClick={() => { shareReddit(poll.uniqueLink, poll.question); closeShareModal(); }}
                       className="social-btn reddit-btn"
                     >
                       Reddit
@@ -1115,20 +1146,20 @@ const LeaderDashboard = () => {
                   <h3>👥 Share with live audience</h3>
                   <p className="share-description">Easy access for your live audience while sharing your screen.</p>
                   <div className="live-share-buttons">
-                    <button 
-                      onClick={() => setShowQR(showQR === poll.id ? null : poll.id)} 
+                    <button
+                      onClick={() => setShowQR(showQR === poll.id ? null : poll.id)}
                       className="live-btn qr-btn"
                     >
                       <FontAwesomeIcon icon={faQrcode} /> QR Code
                     </button>
-                    <button 
-                      onClick={() => window.open(pollLink, '_blank')} 
+                    <button
+                      onClick={() => window.open(pollLink, '_blank')}
                       className="live-btn preview-btn"
                     >
                       <FontAwesomeIcon icon={faEye} /> Preview Poll
                     </button>
                   </div>
-                  
+
                   {showQR === poll.id && (
                     <div className="qr-display">
                       <QRCodeSVG
