@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import LeaderDashboard from './pages/leader/LeaderDashboard';
 import PollView from './pages/poll/PollView';
+import LinkChecker from './pages/LinkChecker';
 import { initializeSampleData } from './utils/storage';
 import { useEffect } from 'react';
 import './App.css';
@@ -39,6 +40,8 @@ function App() {
             }
           />
 
+          {/* Link Checker - Test poll links */}
+          <Route path="/check-link" element={<LinkChecker />} />
 
           {/* Poll View - Clean URLs like domain.com/ram-chate */}
           {/* Must be last to avoid matching other routes */}
