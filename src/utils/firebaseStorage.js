@@ -261,16 +261,23 @@ export const getPollById = async (id) => {
 
 export const getPollByLink = async (uniqueLink) => {
   try {
+    console.log('[getPollByLink] Searching for poll with uniqueLink:', uniqueLink);
+    
     const pollsRef = collection(db, 'polls');
     const q = query(pollsRef, where('uniqueLink', '==', uniqueLink));
     const snapshot = await getDocs(q);
     
+    console.log('[getPollByLink] Query completed. Found', snapshot.size, 'polls');
+    
     if (snapshot.empty) {
+      console.log('[getPollByLink] No poll found with uniqueLink. Trying fallback by ID...');
+      
       // Try to find by ID as fallback (for old polls without uniqueLink)
       const pollRef = doc(db, 'polls', uniqueLink);
       const pollSnap = await getDoc(pollRef);
       
       if (pollSnap.exists()) {
+        console.log('[getPollByLink] Found poll by ID (fallback)');
         const data = pollSnap.data();
         
         // Generate and save uniqueLink
@@ -288,11 +295,32 @@ export const getPollByLink = async (uniqueLink) => {
         };
       }
       
+      console.error('[getPollByLink] Poll not found by uniqueLink or ID:', uniqueLink);
+      
+      // Debug: List all polls to help troubleshoot
+      const allPollsSnapshot = await getDocs(pollsRef);
+      console.log('[getPollByLink] Total polls in database:', allPollsSnapshot.size);
+      allPollsSnapshot.forEach(doc => {
+        const data = doc.data();
+        console.log('[getPollByLink] Poll found:', {
+          id: doc.id,
+          uniqueLink: data.uniqueLink,
+          question: data.question,
+          leaderName: data.leaderName
+        });
+      });
+      
       return null;
     }
     
     const pollDoc = snapshot.docs[0];
     const pollData = { id: pollDoc.id, ...pollDoc.data() };
+    
+    console.log('[getPollByLink] Poll found successfully:', {
+      id: pollData.id,
+      question: pollData.question,
+      uniqueLink: pollData.uniqueLink
+    });
     
     // Increment view count
     await updateDoc(pollDoc.ref, {
@@ -301,7 +329,12 @@ export const getPollByLink = async (uniqueLink) => {
     
     return { ...pollData, viewCount: (pollData.viewCount || 0) + 1 };
   } catch (error) {
-    console.error('Error getting poll by link:', error);
+    console.error('[getPollByLink] Error getting poll by link:', error);
+    console.error('[getPollByLink] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return null;
   }
 };
